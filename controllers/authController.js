@@ -25,6 +25,14 @@ export const register = async (req, res, next) => {
       });
     }
 
+    // Only allow 'user' role during registration
+    if (role && role !== 'user') {
+      return res.status(400).json({
+        success: false,
+        message: "Only job seekers can register. Admins must login with existing credentials.",
+      });
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -39,7 +47,7 @@ export const register = async (req, res, next) => {
       name,
       email,
       password,
-      role: role || "user",
+      role: 'user', // Always set to 'user' for registration
     });
 
     // Generate token
@@ -133,6 +141,101 @@ export const getCurrentUser = async (req, res, next) => {
         resume: user.resume,
         phone: user.phone,
         location: user.location,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @route   POST /api/auth/create-admin
+// @desc    Create new admin account (Admin only)
+// @access  Private (Admin only)
+export const createAdminAccount = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // Validate input
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide name, email, and password",
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered",
+      });
+    }
+
+    // Create new admin user
+    const admin = await User.create({
+      name,
+      email,
+      password,
+      role: 'admin',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Admin account created successfully",
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @route   POST /api/auth/seed-demo-admin
+// @desc    Seed demo admin account (creates or updates)
+// @access  Public (setup endpoint)
+export const seedDemoAdmin = async (req, res, next) => {
+  try {
+    // Check if any admin already exists
+    let admin = await User.findOne({ role: 'admin' });
+    
+    if (admin) {
+      // Update existing admin password
+      admin.password = 'password';
+      await admin.save();
+      
+      return res.status(200).json({
+        success: true,
+        message: "Admin account password updated successfully",
+        admin: {
+          id: admin._id,
+          name: admin.name,
+          email: admin.email,
+          role: admin.role,
+        },
+      });
+    }
+
+    // Create new demo admin
+    admin = await User.create({
+      name: 'Admin',
+      email: 'admin@example.com',
+      password: 'password',
+      role: 'admin',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Demo admin account created successfully",
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
       },
     });
   } catch (error) {
